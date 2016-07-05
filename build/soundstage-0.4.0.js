@@ -796,8 +796,11 @@ if (!Object.setPrototypeOf) {
 			return new Collection(array, settings);
 		}
 
-		// Handle the call signature Collection(settings)
-		if (!(array instanceof Array)) {
+		// Handle the call signatures Collection() and Collection(settings).
+		if (array === undefined) {
+			array = [];
+		}
+		else if (!isDefined(array.length)) {
 			settings = array;
 			array = [];
 		}
@@ -4145,6 +4148,28 @@ if (!Object.setPrototypeOf) {
 	});
 
 
+	// Sequences
+
+	function Sequences(data) {
+		// Initialise connections as a Collection
+		Collection.call(this, data, { index: "name" });
+	}
+
+	Object.setPrototypeOf(Sequences.prototype, Collection.prototype);
+
+	assign(Sequences.prototype, {
+		create: function(data) {
+			var sequence = new Sequence(data);
+			this.add(sequence);
+			return sequence;
+		},
+
+		delete: function(data) {
+			// Todo.
+		}
+	});
+
+
 	// Soundstage
 
 	var mediaInputs = [];
@@ -4166,7 +4191,7 @@ if (!Object.setPrototypeOf) {
 		var connections = new Connections(objects);
 		var midi        = Soundstage.MidiMap(objects);
 		var clock       = new Clock(audio);
-		var sequences   = new Collection({ index: "name" });
+		var sequences   = new Sequences();
 
 		// Initialise soundstage as an Audio Object with no inputs and
 		// a channel merger as an output.
@@ -4347,12 +4372,12 @@ if (!Object.setPrototypeOf) {
 				var k = keys.length;
 
 				while (k--) {
-					this.sequences.add(new Sequence(data.sequences[keys[k]]));
+					this.sequences.create(data.sequences[keys[k]]);
 				}
 			}
 
-			if (data.sequence && data.sequence.length) {
-				this.sequence.add.apply(this.sequence, data.sequence);
+			if (data.events && data.events.length) {
+				this.events.add.apply(this.events, data.events);
 			}
 
 			if (data.tempo) {
@@ -4766,7 +4791,7 @@ if (!Object.setPrototypeOf) {
 
 	var Soundstage = window.Soundstage;
 	var assign  = Object.assign;
-	
+
 	var cache = [];
 	var defaults = {};
 	var automation = {
@@ -4973,7 +4998,7 @@ if (!Object.setPrototypeOf) {
 		function end(e) {
 			var node = e.target;
 			var i = nodes.indexOf(node);
-			
+
 			if (i > -1) { nodes.splice(i, 1); }
 			node.disconnect();
 			detuneNode.disconnect(node.detune);
@@ -5013,7 +5038,7 @@ if (!Object.setPrototypeOf) {
 
 		this.noteCenter = 69; // A4
 
-		this.start = function(time, number) {
+		this.start = function(time, offset, duration, number) {
 			if (!buffer) { return this; }
 
 			var node = audio.createBufferSource();
@@ -5029,7 +5054,7 @@ if (!Object.setPrototypeOf) {
 			node.loopEnd = this.loopEnd;
 			node.connect(outputNode);
 			node.onended = end;
-			node.start(time || 0);
+			node.start(time || 0, offset, duration);
 			nodes.push(node);
 			return this;
 		};
@@ -7114,7 +7139,7 @@ if (!Object.setPrototypeOf) {
 		"note-follow":        1,
 		"velocity-follow":    0.5,
 
-		"attack-sequence": [
+		"attack-events": [
 			// Gain
 			[0,     "param", "gain", 0],
 			[0,     "param", "gain", 0.125, "linear", 0.008],
@@ -7127,7 +7152,7 @@ if (!Object.setPrototypeOf) {
 			[0.6,   "param", "envelope", 0.8, 'linear', 1.6]
 		],
 
-		"release-sequence": [
+		"release-events": [
 			// Gain
 			[0,     "param", "gain", 0, "decay", 0.05],
 
@@ -7301,7 +7326,7 @@ if (!Object.setPrototypeOf) {
 				"gain": gainNode.gain
 			};
 
-			var attack = object['attack-sequence'];
+			var attack = object['attack-events'];
 			var n = -1;
 			var name, e, param;
 
@@ -7328,7 +7353,7 @@ if (!Object.setPrototypeOf) {
 				gainNode,               // 0
 				filterNode,             // 1
 				envelopeGainNode,       // 2
-				velocityMultiplierNode, // 3      
+				velocityMultiplierNode, // 3
 				envelopeNode,           // 4
 				noteGainNode,           // 5
 				osc1,         // 6
@@ -7376,8 +7401,8 @@ if (!Object.setPrototypeOf) {
 				AudioObject.truncate(params[key], time);
 			}
 
-			// Cue up release events on their params 
-			var release = object['release-sequence'];
+			// Cue up release events on their params
+			var release = object['release-events'];
 			var n = -1;
 			var e, param;
 
@@ -7433,8 +7458,8 @@ if (!Object.setPrototypeOf) {
 		this['filter'] = options['filter'];
 		this['note-follow'] = options['note-follow'];
 		this['velocity-follow'] = options['velocity-follow'];
-		this['attack-sequence'] = Collection(options["attack-sequence"], sequenceSettings).sort();
-		this['release-sequence'] = Collection(options["release-sequence"], sequenceSettings).sort();
+		this['attack-events'] = Collection(options["attack-events"], sequenceSettings).sort();
+		this['release-events'] = Collection(options["release-events"], sequenceSettings).sort();
 	}
 
 	// Mix AudioObject prototype into MyObject prototype
